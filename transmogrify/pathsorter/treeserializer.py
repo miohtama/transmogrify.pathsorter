@@ -31,9 +31,9 @@ class TreeSerializer(object):
         
         @return: string or None if parent path cannot be resolved
         """
-        path = item['_path']
+        path = item.get('_path', None)
         
-        if path is None or path == "":
+        if path is None:
             return None
         
         path = path.split("/")
@@ -60,6 +60,15 @@ class TreeSerializer(object):
             
         logger.debug("Parent %s got child %s" % (parent["_path"], item["_path"]))
         parent["_children"].append(item)
+        
+    def createRootItem(self):
+        """ Create a faux item which contains the root folder listing with its  _children
+        
+        """
+        item = {}
+        item["_root_item"] = True
+        item["_path"] = ""
+        return item
 
     def __iter__(self):
         items = {}
@@ -176,14 +185,25 @@ class TreeSerializer(object):
         
         # Map items by their path
         path_to_item = {}
+        
+        # Create a fake item to act as the root container        
+        root_item = self.createRootItem()
+        yield root_item
+        
+        path_to_item[""] = root_item
 
         for sortorder, path, item in treeorder:            
             
             # store item by path key
             path_to_item[item['_path']] = item
             
-            parent_path= self.getParentPath(item)
-            if parent_path:
+            # XXX: Since we do not have "root" item
+            # we will mark all root children 
+            # belonging to the index.html if such exists
+            
+            parent_path = self.getParentPath(item)
+
+            if parent_path is not None:
                 parent_item = path_to_item.get(parent_path, None)
                 if parent_item:
                     self.appendChild(parent_item, item)
