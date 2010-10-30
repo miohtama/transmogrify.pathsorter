@@ -6,9 +6,15 @@ from collective.transmogrifier.interfaces import ISectionBlueprint
 from collective.transmogrifier.interfaces import ISection
 
 import logging
-logger = logging.getLogger('Plone')
+logger = logging.getLogger('treeserializer')
 
 class TreeSerializer(object):
+    """
+    Create correct sort order for items.
+    
+    Add _children hint for transmogrified items.
+    
+    """
     classProvides(ISectionBlueprint)
     implements(ISection)
 
@@ -16,6 +22,44 @@ class TreeSerializer(object):
         self.previous = previous
         self.default_pages = options.get('default_pages', 'index.html').split()
         self.default_containers = options.get('default_containers', 'Folder').split()
+        
+        
+    def getParentPath(self, item):
+        """ Resolve the orignal path of the parent item 
+        
+        @param item: tranmogrify item
+        
+        @return: string or None if parent path cannot be resolved
+        """
+        path = item['_path']
+        
+        if path is None or path == "":
+            return None
+        
+        path = path.split("/")
+        
+        if len(path) == 0:
+            return None
+        
+        path = path[0:-1]
+        
+        path = "/".join(path)
+        
+        return path
+        
+    def appendChild(self, parent, item):
+        """ Create _children list for the parent
+        
+        @param parent: Transmogrify object
+        
+        @param item: Transmogrify object        
+        """
+        
+        if not "_children" in parent.keys():
+            parent["_children"] = []
+            
+        logger.debug("Parent %s got child %s" % (parent["_path"], item["_path"]))
+        parent["_children"].append(item)
 
     def __iter__(self):
         items = {}
@@ -129,9 +173,22 @@ class TreeSerializer(object):
 
 
         treeorder.sort()
+        
+        # Map items by their path
+        path_to_item = {}
 
-        for sortorder, path, item in treeorder:
-            #print sortorder, item['_path']
+        for sortorder, path, item in treeorder:            
+            
+            # store item by path key
+            path_to_item[item['_path']] = item
+            
+            parent_path= self.getParentPath(item)
+            if parent_path:
+                parent_item = path_to_item.get(parent_path, None)
+                if parent_item:
+                    self.appendChild(parent_item, item)
+            
+            logger.debug("Sort order:" + str((sortorder, item['_path'])))
             yield item
 
 
